@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
@@ -13,7 +14,7 @@ const int N = 4;
 void doWork(int myrank, const std::vector<int>& sizes, DividerSelector getDivider);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
-void calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
+double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
 double getKKItem(MatrixRef matrix, int k_index);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
@@ -96,9 +97,10 @@ void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
     }
 }
 
-void calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider)
+double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider)
 {
     int size = map.size();
+    auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < size - 1; k++) {
         if (map[k] == myrank) {
             auto divider = getDivider(a, k);
@@ -123,6 +125,10 @@ void calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSele
             }
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    using Nanoseconds = std::chrono::nanoseconds;
+    auto duration = std::chrono::duration_cast<Nanoseconds>(end - start);
+    return duration.count() / 1e9;
 }
 
 double getKKItem(MatrixRef matrix, int k_index)
