@@ -7,6 +7,7 @@ const int N = 4;
 
 void doWork(int myrank, int nprocs, int size);
 void fillHilbertMatrix(std::vector<double>& matrix, int size);
+void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank);
 
 inline double getitem(const std::vector<double>& matrix, int rows_count, int i, int j)
 {
@@ -17,6 +18,7 @@ inline void setitem(std::vector<double>& matrix, int rows_count, int i, int j, d
     matrix[i * rows_count + j] = value;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
 {
@@ -33,6 +35,8 @@ int main(int argc, char* argv[])
     MPI_Finalize();
     return 0;
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 void doWork(int myrank, int nprocs, int size)
 {
@@ -72,18 +76,7 @@ void doWork(int myrank, int nprocs, int size)
             }
         }
     }
-    // Printing the entries of the matrix
-    for (i = 0; i < size; i++) {
-        if (map[i] != myrank) {
-            continue;
-        }
-        printf("%d:\t", i + 1);
-        for (j = 0; j < size; j++) {
-            printf("%lg, ", getitem(a, size, i, j));
-        }
-        printf("\n");
-    }
-    printf("\n");
+    printMatrix(a, map, myrank);
     fflush(stdout);
 }
 
@@ -94,5 +87,20 @@ void fillHilbertMatrix(std::vector<double>& matrix, int size)
             auto value = 1.0 / (i + j + 2 - 1);
             setitem(matrix, size, i, j, value);
         }
+    }
+}
+
+void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank)
+{
+    int size = map.size();
+    for (int i = 0; i < size; i++) {
+        if (map[i] != myrank) {
+            continue;
+        }
+        printf("%d:\t", i + 1);
+        for (int j = 0; j < size; j++) {
+            printf("%lg, ", getitem(matrix, size, i, j));
+        }
+        printf("\n");
     }
 }
