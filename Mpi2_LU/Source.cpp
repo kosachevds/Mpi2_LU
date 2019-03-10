@@ -4,6 +4,7 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <algorithm>
 
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
@@ -33,10 +34,12 @@ int main(int argc, char* argv[])
 {
     MPI_Init(&argc, &argv);
 
+    //std::vector<int> sizes { 10, 50, 100, 500, 1000 };
+    std::vector<int> sizes { 5 };
     auto& out = std::cout;
 
-    //doWork({ 10, 50, 100, 500, 1000 }, getKKItem, std::cout, "Simple");
-    doWork({ 10, 50, 100, 500, 1000 }, getMaxInRow, std::cout, "MaxInRow");
+    //doWork(sizes, getKKItem, std::cout, "Simple");
+    doWork(sizes, getMaxInRow, std::cout, "MaxInRow");
 
     out.flush();
     MPI_Finalize();
@@ -62,6 +65,7 @@ void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostr
         out << std::endl;
     }
 
+    //auto max_size = *std::max_element(sizes.begin(), sizes.end());
     Matrix a;
     std::vector<int> map;
     for (int size: sizes) {
@@ -76,7 +80,6 @@ void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostr
         for (int i = 0; i < size; ++i) {
             map[i] = i % nprocs;
         }
-
         auto time_sec = calculate(myrank, a, map, getDivider);
 
         if (myrank == 0) {
@@ -84,6 +87,7 @@ void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostr
             out << std::setw(WIDTH_2) << time_sec;
             out << std::endl;
         }
+        //printMatrix(a, map, myrank);
     }
 }
 
@@ -127,6 +131,7 @@ double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSe
         }
         auto chunk = a.data() + k * size + k + 1;
         MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
+        //std::cout << myrank << ": " << size - k - 1 << std::endl;
         for (int i = k + 1; i < size; i++) {
             if (map[i] != myrank) {
                 continue;
@@ -167,10 +172,10 @@ double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int ran
             }
         }
     }
+    MPI_Bcast(&column_with_max, 1, MPI_INT, rank, MPI_COMM_WORLD);
     if (column_with_max == k) {
         return max_value;
     }
-    MPI_Bcast(&column_with_max, 1, MPI_INT, rank, MPI_COMM_WORLD);
     for (int row = 0; row < size; ++row) {
         if (map[row] != rank) {
             continue;
