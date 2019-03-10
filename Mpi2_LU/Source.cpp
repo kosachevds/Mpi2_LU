@@ -8,16 +8,15 @@
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
 using MatrixConstRef = const Matrix&;
-using DividerSelector = double (*)(MatrixRef, int);
-
-const int N = 4;
+using DividerSelector = double (*)(MatrixRef, const std::vector<int>&, int, int);
 
 void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostream& out, const char* title);
-void printHeader(const char* title, std::ostream& out);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
 double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
-double getKKItem(MatrixRef matrix, int k_index);
+double getKKItem(MatrixRef matrix, const std::vector<int>& map, int k_index, int rank);
+double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
+void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
@@ -32,19 +31,14 @@ inline void setitem(MatrixRef matrix, int rows_count, int i, int j, double value
 
 int main(int argc, char* argv[])
 {
-    int myrank;
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
     auto& out = std::cout;
 
-    doWork({ 10, 50, 100, 500, 1000 }, getKKItem, std::cout, "Simple");
+    //doWork({ 10, 50, 100, 500, 1000 }, getKKItem, std::cout, "Simple");
+    doWork({ 10, 50, 100, 500, 1000 }, getMaxInRow, std::cout, "MaxInRow");
 
     out.flush();
-
-    if (myrank == 0) {
-        system("pause");
-    }
     MPI_Finalize();
     return 0;
 }
@@ -123,8 +117,8 @@ double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSe
     int size = map.size();
     auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < size - 1; k++) {
+        auto divider = getDivider(a, map, k, myrank);
         if (map[k] == myrank) {
-            auto divider = getDivider(a, k);
             for (int i = k + 1; i < size; i++) {
                 auto old_value = getitem(a, size, k, i);
                 auto new_value = old_value / divider;
@@ -153,8 +147,43 @@ double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSe
     return duration.count() / 1e9;
 }
 
-double getKKItem(MatrixRef matrix, int k_index)
+double getKKItem(MatrixRef matrix, const std::vector<int>&, int k_index, int)
 {
     auto size = static_cast<int>(sqrt(matrix.size()));
     return getitem(matrix, size, k_index, k_index);
+}
+
+double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
+{
+    auto size = static_cast<int>(map.size());
+    auto max_value = getitem(matrix, size, k, k);
+    int column_with_max = k;
+    if (map[k] == rank) {
+        for (int col = k + 1; col < size; ++col) {
+            auto item = getitem(matrix, size, k, col);
+            if (item > max_value) {
+                max_value = item;
+                column_with_max = col;
+            }
+        }
+    }
+    if (column_with_max == k) {
+        return max_value;
+    }
+    MPI_Bcast(&column_with_max, 1, MPI_INT, rank, MPI_COMM_WORLD);
+    for (int row = 0; row < size; ++row) {
+        if (map[row] != rank) {
+            continue;
+        }
+        swapValuesInColumns(matrix, size, row, k, column_with_max);
+    }
+    return max_value;
+}
+
+void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2)
+{
+    auto value_col1 = getitem(matrix, size, row, col1);
+    auto value_col2 = getitem(matrix, size, row, col2);
+    setitem(matrix, size, row, col1, value_col2);
+    setitem(matrix, size, row, col2, value_col1);
 }
