@@ -6,13 +6,15 @@
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
 using MatrixConstRef = const Matrix&;
+using DividerSelector = double (*)(MatrixRef, int);
 
 const int N = 4;
 
-void doWork(int myrank, const std::vector<int>& sizes);
+void doWork(int myrank, const std::vector<int>& sizes, DividerSelector getDivider);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
-void calculate(int myrank, MatrixRef a, const std::vector<int>& map);
+void calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
+double getKKItem(MatrixRef matrix, int k_index);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
@@ -31,7 +33,7 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    doWork(myrank, { N });
+    doWork(myrank, { N }, getKKItem);
 
     std::cout.flush();
 
@@ -44,7 +46,7 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void doWork(int myrank, const std::vector<int>& sizes)
+void doWork(int myrank, const std::vector<int>& sizes, DividerSelector getDivider)
 {
     int nprocs;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -63,7 +65,7 @@ void doWork(int myrank, const std::vector<int>& sizes)
             map[i] = i % nprocs;
         }
 
-        calculate(myrank, a, map);
+        calculate(myrank, a, map, getDivider);
 
         printMatrix(a, map, myrank);
     }
@@ -94,12 +96,12 @@ void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
     }
 }
 
-void calculate(int myrank, MatrixRef a, const std::vector<int>& map)
+void calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider)
 {
     int size = map.size();
     for (int k = 0; k < size - 1; k++) {
         if (map[k] == myrank) {
-            auto divider = getitem(a, size, k, k);
+            auto divider = getDivider(a, k);
             for (int i = k + 1; i < size; i++) {
                 auto old_value = getitem(a, size, k, i);
                 auto new_value = old_value / divider;
@@ -121,4 +123,10 @@ void calculate(int myrank, MatrixRef a, const std::vector<int>& map)
             }
         }
     }
+}
+
+double getKKItem(MatrixRef matrix, int k_index)
+{
+    auto size = static_cast<int>(sqrt(matrix.size()));
+    return getitem(matrix, size, k_index, k_index);
 }
