@@ -6,11 +6,11 @@
 const int N = 4;
 
 void doWork(int myrank, int nprocs, int size);
-inline double getitem(const double* matrix, int i, int j, int n)
+inline double getitem(const std::vector<double>& matrix, int i, int j, int n)
 {
     return matrix[i * n + j];
 }
-inline void setitem(double* matrix, int i, int j, int n, double value)
+inline void setitem(std::vector<double>& matrix, int i, int j, int n, double value)
 {
     matrix[i * n + j] = value;
 }
@@ -34,8 +34,7 @@ int main(int argc, char* argv[])
 void doWork(int myrank, int nprocs, int size)
 {
     int i, j, k;
-    std::vector<double> a_(size * size);
-    double* a = reinterpret_cast<double*>(a_.data());
+    std::vector<double> a(size * size);
     if (myrank == 0) {
         for (i = 0; i < size; i++) {
             for (j = 0; j < size; j++) {
@@ -44,7 +43,7 @@ void doWork(int myrank, int nprocs, int size)
             }
         }
     }
-    MPI_Bcast(static_cast<void*>(a), size * size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(static_cast<void*>(a.data()), size * size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     std::vector<int> map(size);
     for (i = 0; i < size; i++)
         map[i] = i % nprocs;
@@ -57,7 +56,7 @@ void doWork(int myrank, int nprocs, int size)
                 setitem(a, k, i, size, new_value);
             }
         }
-        auto chunk = a + k * size + k + 1;
+        auto chunk = a.data() + k * size + k + 1;
         MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
         for (i = k + 1; i < size; i++) {
             if (map[i] == myrank) {
