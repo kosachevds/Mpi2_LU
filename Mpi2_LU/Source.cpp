@@ -60,25 +60,29 @@ void doWork(int myrank, int nprocs, int size)
         auto chunk = a.data() + k * size + k + 1;
         MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
         for (i = k + 1; i < size; i++) {
-            if (map[i] == myrank) {
-                for (j = k + 1; j < size; j++) {
-                    auto multiplier = getitem(a, size, i, k);
-                    auto k_row_item = getitem(a, size, k, j);
-                    auto old_value = getitem(a, size, i, j);
-                    auto new_value = old_value - k_row_item * multiplier;
-                    setitem(a, size, i, j, new_value);
-                }
+            if (map[i] != myrank) {
+                continue;
+            }
+            for (j = k + 1; j < size; j++) {
+                auto multiplier = getitem(a, size, i, k);
+                auto k_row_item = getitem(a, size, k, j);
+                auto old_value = getitem(a, size, i, j);
+                auto new_value = old_value - k_row_item * multiplier;
+                setitem(a, size, i, j, new_value);
             }
         }
     }
     // Printing the entries of the matrix
-    for (i = 0; i < size; i++)
-        if (map[i] == myrank) {
-            printf("%d:\t", i + 1);
-            for (j = 0; j < size; j++)
-                printf("%lg, ", getitem(a, size, i, j));
-            printf("\n");
+    for (i = 0; i < size; i++) {
+        if (map[i] != myrank) {
+            continue;
         }
+        printf("%d:\t", i + 1);
+        for (j = 0; j < size; j++) {
+            printf("%lg, ", getitem(a, size, i, j));
+        }
+        printf("\n");
+    }
     printf("\n");
     fflush(stdout);
 }
