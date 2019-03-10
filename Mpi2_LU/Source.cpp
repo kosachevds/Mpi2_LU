@@ -8,6 +8,7 @@ const int N = 4;
 void doWork(int myrank, int nprocs, int size);
 void fillHilbertMatrix(std::vector<double>& matrix, int size);
 void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank);
+void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map);
 
 inline double getitem(const std::vector<double>& matrix, int rows_count, int i, int j)
 {
@@ -42,7 +43,6 @@ int main(int argc, char* argv[])
 
 void doWork(int myrank, int nprocs, int size)
 {
-    int i, j, k;
     int item_count = size * size;
     std::vector<double> a(item_count);
     if (myrank == 0) {
@@ -51,33 +51,12 @@ void doWork(int myrank, int nprocs, int size)
     auto raw_void_ptr = static_cast<void*>(a.data());
     MPI_Bcast(raw_void_ptr, item_count, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     std::vector<int> map(size);
-    for (i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         map[i] = i % nprocs;
     }
-    for (k = 0; k < size - 1; k++) {
-        if (map[k] == myrank) {
-            auto divider = getitem(a, size, k, k);
-            for (i = k + 1; i < size; i++) {
-                auto old_value = getitem(a, size, k, i);
-                auto new_value = old_value / divider;
-                setitem(a, size, k, i, new_value);
-            }
-        }
-        auto chunk = a.data() + k * size + k + 1;
-        MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
-        for (i = k + 1; i < size; i++) {
-            if (map[i] != myrank) {
-                continue;
-            }
-            for (j = k + 1; j < size; j++) {
-                auto multiplier = getitem(a, size, i, k);
-                auto k_row_item = getitem(a, size, k, j);
-                auto old_value = getitem(a, size, i, j);
-                auto new_value = old_value - k_row_item * multiplier;
-                setitem(a, size, i, j, new_value);
-            }
-        }
-    }
+
+    calculate(myrank, a, map);
+
     printMatrix(a, map, myrank);
 }
 
@@ -103,5 +82,34 @@ void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map,
             std::cout << getitem(matrix, size, i, j) << ", ";
         }
         std::cout << '\n';
+    }
+}
+
+void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map)
+{
+    int size = map.size();
+    for (int k = 0; k < size - 1; k++) {
+        if (map[k] == myrank) {
+            auto divider = getitem(a, size, k, k);
+            for (int i = k + 1; i < size; i++) {
+                auto old_value = getitem(a, size, k, i);
+                auto new_value = old_value / divider;
+                setitem(a, size, k, i, new_value);
+            }
+        }
+        auto chunk = a.data() + k * size + k + 1;
+        MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
+        for (int i = k + 1; i < size; i++) {
+            if (map[i] != myrank) {
+                continue;
+            }
+            for (int j = k + 1; j < size; j++) {
+                auto multiplier = getitem(a, size, i, k);
+                auto k_row_item = getitem(a, size, k, j);
+                auto old_value = getitem(a, size, i, j);
+                auto new_value = old_value - k_row_item * multiplier;
+                setitem(a, size, i, j, new_value);
+            }
+        }
     }
 }
