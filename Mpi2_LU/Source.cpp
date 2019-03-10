@@ -5,7 +5,7 @@
 
 const int N = 4;
 
-void doWork(int myrank, int nprocs, int size);
+void doWork(int myrank, int nprocs, const std::vector<int>& sizes);
 void fillHilbertMatrix(std::vector<double>& matrix, int size);
 void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank);
 void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map);
@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    doWork(myrank, nprocs, N);
+    doWork(myrank, nprocs, { N });
 
     std::cout.flush();
 
@@ -41,23 +41,27 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void doWork(int myrank, int nprocs, int size)
+void doWork(int myrank, int nprocs, const std::vector<int>& sizes)
 {
-    int item_count = size * size;
-    std::vector<double> a(item_count);
-    if (myrank == 0) {
-        fillHilbertMatrix(a, size);
-    }
-    auto raw_void_ptr = static_cast<void*>(a.data());
-    MPI_Bcast(raw_void_ptr, item_count, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    std::vector<int> map(size);
-    for (int i = 0; i < size; i++) {
-        map[i] = i % nprocs;
-    }
+    std::vector<double> a;
+    std::vector<int> map;
+    for (int size: sizes) {
+        int item_count = size * size;
+        a.resize(item_count);
+        if (myrank == 0) {
+            fillHilbertMatrix(a, size);
+        }
+        auto raw_void_ptr = static_cast<void*>(a.data());
+        MPI_Bcast(raw_void_ptr, item_count, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        map.resize(size);
+        for (int i = 0; i < size; ++i) {
+            map[i] = i % nprocs;
+        }
 
-    calculate(myrank, a, map);
+        calculate(myrank, a, map);
 
-    printMatrix(a, map, myrank);
+        printMatrix(a, map, myrank);
+    }
 }
 
 void fillHilbertMatrix(std::vector<double>& matrix, int size)
