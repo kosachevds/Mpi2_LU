@@ -1,10 +1,11 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <cstdlib>
+#include <vector>
 
 const int N = 4;
 
-void doWork(int myrank, int nprocs);
+void doWork(int myrank, int nprocs, int size);
 inline double getitem(const double* matrix, int i, int j, int n)
 {
     return matrix[i * n + j];
@@ -21,7 +22,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    doWork(myrank, nprocs);
+    doWork(myrank, nprocs, N);
 
     if (myrank == 0) {
         system("pause");
@@ -30,51 +31,52 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void doWork(int myrank, int nprocs)
+void doWork(int myrank, int nprocs, int size)
 {
-    int i, j, k, map[N];
-    double a_[N][N];
-    double* a = reinterpret_cast<double*>(a_);
+    int i, j, k;
+    std::vector<double> a_(size * size);
+    double* a = reinterpret_cast<double*>(a_.data());
     if (myrank == 0) {
-        for (i = 0; i < N; i++) {
-            for (j = 0; j < N; j++) {
+        for (i = 0; i < size; i++) {
+            for (j = 0; j < size; j++) {
                 auto value = 1.0 / (i + j + 2 - 1);
-                setitem(a, i, j, N, value);
+                setitem(a, i, j, size, value);
             }
         }
     }
-    MPI_Bcast(static_cast<void*>(a), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    for (i = 0; i < N; i++)
+    MPI_Bcast(static_cast<void*>(a), size * size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    std::vector<int> map(size);
+    for (i = 0; i < size; i++)
         map[i] = i % nprocs;
-    for (k = 0; k < N - 1; k++) {
+    for (k = 0; k < size - 1; k++) {
         if (map[k] == myrank) {
-            auto divider = getitem(a, k, k, N);
-            for (i = k + 1; i < N; i++) {
-                auto old_value = getitem(a, k, i, N);
+            auto divider = getitem(a, k, k, size);
+            for (i = k + 1; i < size; i++) {
+                auto old_value = getitem(a, k, i, size);
                 auto new_value = old_value / divider;
-                setitem(a, k, i, N, new_value);
+                setitem(a, k, i, size, new_value);
             }
         }
-        auto chunk = a + k * N + k + 1;
-        MPI_Bcast(chunk, N - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
-        for (i = k + 1; i < N; i++) {
+        auto chunk = a + k * size + k + 1;
+        MPI_Bcast(chunk, size - k - 1, MPI_DOUBLE, map[k], MPI_COMM_WORLD);
+        for (i = k + 1; i < size; i++) {
             if (map[i] == myrank) {
-                for (j = k + 1; j < N; j++) {
-                    auto multiplier = getitem(a, i, k, N);
-                    auto k_row_item = getitem(a, k, j, N);
-                    auto old_value = getitem(a, i, j, N);
+                for (j = k + 1; j < size; j++) {
+                    auto multiplier = getitem(a, i, k, size);
+                    auto k_row_item = getitem(a, k, j, size);
+                    auto old_value = getitem(a, i, j, size);
                     auto new_value = old_value - k_row_item * multiplier;
-                    setitem(a, i, j, N, new_value);
+                    setitem(a, i, j, size, new_value);
                 }
             }
         }
     }
     // Printing the entries of the matrix
-    for (i = 0; i < N; i++)
+    for (i = 0; i < size; i++)
         if (map[i] == myrank) {
             printf("%d:\t", i + 1);
-            for (j = 0; j < N; j++)
-                printf("%lg, ", getitem(a, i, j, N));
+            for (j = 0; j < size; j++)
+                printf("%lg, ", getitem(a, i, j, size));
             printf("\n");
         }
     printf("\n");
