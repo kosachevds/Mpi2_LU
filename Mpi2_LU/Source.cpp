@@ -11,7 +11,7 @@ using DividerSelector = double (*)(MatrixRef, int);
 
 const int N = 4;
 
-void doWork(int myrank, const std::vector<int>& sizes, DividerSelector getDivider);
+void doWork(const std::vector<int>& sizes, DividerSelector getDivider);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
 double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    doWork(myrank, { N }, getKKItem);
+    doWork({ N }, getKKItem);
 
     std::cout.flush();
 
@@ -47,12 +47,15 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void doWork(int myrank, const std::vector<int>& sizes, DividerSelector getDivider)
+void doWork(const std::vector<int>& sizes, DividerSelector getDivider)
 {
-    int nprocs;
+    int myrank, nprocs;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
     Matrix a;
     std::vector<int> map;
+
     for (int size: sizes) {
         int item_count = size * size;
         a.resize(item_count);
