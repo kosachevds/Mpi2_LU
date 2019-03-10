@@ -1,7 +1,7 @@
 #include <mpi.h>
-#include <stdio.h>
 #include <cstdlib>
 #include <vector>
+#include <iostream>
 
 const int N = 4;
 
@@ -28,6 +28,8 @@ int main(int argc, char* argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     doWork(myrank, nprocs, N);
+
+    std::cout.flush();
 
     if (myrank == 0) {
         system("pause");
@@ -77,7 +79,6 @@ void doWork(int myrank, int nprocs, int size)
         }
     }
     printMatrix(a, map, myrank);
-    fflush(stdout);
 }
 
 void fillHilbertMatrix(std::vector<double>& matrix, int size)
@@ -99,8 +100,8 @@ void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map,
         }
         printf("%d:\t", i + 1);
         for (int j = 0; j < size; j++) {
-            printf("%lg, ", getitem(matrix, size, i, j));
+            std::cout << getitem(matrix, size, i, j) << ", ";
         }
-        printf("\n");
+        std::cout << '\n';
     }
 }
