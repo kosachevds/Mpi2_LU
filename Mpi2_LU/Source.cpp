@@ -5,7 +5,7 @@
 
 const int N = 4;
 
-void doWork(int myrank, int nprocs, const std::vector<int>& sizes);
+void doWork(int myrank, const std::vector<int>& sizes);
 void fillHilbertMatrix(std::vector<double>& matrix, int size);
 void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank);
 void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map);
@@ -23,12 +23,11 @@ inline void setitem(std::vector<double>& matrix, int rows_count, int i, int j, d
 
 int main(int argc, char* argv[])
 {
-    int myrank, nprocs;
+    int myrank;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    doWork(myrank, nprocs, { N });
+    doWork(myrank, { N });
 
     std::cout.flush();
 
@@ -41,8 +40,10 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void doWork(int myrank, int nprocs, const std::vector<int>& sizes)
+void doWork(int myrank, const std::vector<int>& sizes)
 {
+    int nprocs;
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     std::vector<double> a;
     std::vector<int> map;
     for (int size: sizes) {
