@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <iomanip>
 
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
@@ -11,7 +12,8 @@ using DividerSelector = double (*)(MatrixRef, int);
 
 const int N = 4;
 
-void doWork(const std::vector<int>& sizes, DividerSelector getDivider);
+void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostream& out, const char* title);
+void printHeader(const char* title, std::ostream& out);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
 double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSelector getDivider);
@@ -34,9 +36,11 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    doWork({ N }, getKKItem);
+    auto& out = std::cout;
 
-    std::cout.flush();
+    doWork({ 10, 50, 100, 500, 1000 }, getKKItem, std::cout, "Simple");
+
+    out.flush();
 
     if (myrank == 0) {
         system("pause");
@@ -47,15 +51,25 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void doWork(const std::vector<int>& sizes, DividerSelector getDivider)
+void doWork(const std::vector<int>& sizes, DividerSelector getDivider, std::ostream& out, const char* title)
 {
+    const int WIDTH_1 = 6;
+    const int WIDTH_2 = 13;
+    //const int WIDTH_3 = 15;
+
     int myrank, nprocs;
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+    if (myrank == 0) {
+        out << title << std::endl;
+        out << ";" << std::setw(WIDTH_1 - 1) << "N";
+        out << std::setw(WIDTH_2) << "Time, sec";
+        out << std::endl;
+    }
+
     Matrix a;
     std::vector<int> map;
-
     for (int size: sizes) {
         int item_count = size * size;
         a.resize(item_count);
@@ -69,9 +83,13 @@ void doWork(const std::vector<int>& sizes, DividerSelector getDivider)
             map[i] = i % nprocs;
         }
 
-        calculate(myrank, a, map, getDivider);
+        auto time_sec = calculate(myrank, a, map, getDivider);
 
-        printMatrix(a, map, myrank);
+        if (myrank == 0) {
+            out << std::setw(WIDTH_1) << size;
+            out << std::setw(WIDTH_2) << time_sec;
+            out << std::endl;
+        }
     }
 }
 
@@ -128,6 +146,7 @@ double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSe
             }
         }
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     auto end = std::chrono::high_resolution_clock::now();
     using Nanoseconds = std::chrono::nanoseconds;
     auto duration = std::chrono::duration_cast<Nanoseconds>(end - start);
