@@ -3,18 +3,22 @@
 #include <vector>
 #include <iostream>
 
+using Matrix = std::vector<double>;
+using MatrixRef = Matrix&;
+using MatrixConstRef = const Matrix&;
+
 const int N = 4;
 
 void doWork(int myrank, const std::vector<int>& sizes);
-void fillHilbertMatrix(std::vector<double>& matrix, int size);
-void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank);
-void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map);
+void fillHilbertMatrix(MatrixRef matrix, int size);
+void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
+void calculate(int myrank, MatrixRef a, const std::vector<int>& map);
 
-inline double getitem(const std::vector<double>& matrix, int rows_count, int i, int j)
+inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
     return matrix[i * rows_count + j];
 }
-inline void setitem(std::vector<double>& matrix, int rows_count, int i, int j, double value)
+inline void setitem(MatrixRef matrix, int rows_count, int i, int j, double value)
 {
     matrix[i * rows_count + j] = value;
 }
@@ -44,7 +48,7 @@ void doWork(int myrank, const std::vector<int>& sizes)
 {
     int nprocs;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    std::vector<double> a;
+    Matrix a;
     std::vector<int> map;
     for (int size: sizes) {
         int item_count = size * size;
@@ -65,7 +69,7 @@ void doWork(int myrank, const std::vector<int>& sizes)
     }
 }
 
-void fillHilbertMatrix(std::vector<double>& matrix, int size)
+void fillHilbertMatrix(MatrixRef matrix, int size)
 {
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
@@ -75,7 +79,7 @@ void fillHilbertMatrix(std::vector<double>& matrix, int size)
     }
 }
 
-void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map, int myrank)
+void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
 {
     int size = map.size();
     for (int i = 0; i < size; i++) {
@@ -90,7 +94,7 @@ void printMatrix(const std::vector<double>& matrix, const std::vector<int>& map,
     }
 }
 
-void calculate(int myrank, std::vector<double>& a, const std::vector<int>& map)
+void calculate(int myrank, MatrixRef a, const std::vector<int>& map)
 {
     int size = map.size();
     for (int k = 0; k < size - 1; k++) {
