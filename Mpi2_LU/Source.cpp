@@ -1,10 +1,8 @@
 #include <mpi.h>
-#include <cstdlib>
 #include <vector>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
-#include <algorithm>
 
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
@@ -34,11 +32,11 @@ int main(int argc, char* argv[])
 {
     MPI_Init(&argc, &argv);
 
-    //std::vector<int> sizes { 10, 50, 100, 500, 1000 };
-    std::vector<int> sizes { 5 };
+    std::vector<int> sizes { 10, 50, 100, 500, 1000 };
+    //std::vector<int> sizes { 4 };
     auto& out = std::cout;
 
-    //doWork(sizes, getKKItem, std::cout, "Simple");
+    doWork(sizes, getKKItem, std::cout, "Simple");
     doWork(sizes, getMaxInRow, std::cout, "MaxInRow");
 
     out.flush();
@@ -163,7 +161,8 @@ double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int ran
     auto size = static_cast<int>(map.size());
     auto max_value = getitem(matrix, size, k, k);
     int column_with_max = k;
-    if (map[k] == rank) {
+    int owner = map[k];
+    if (owner == rank) {
         for (int col = k + 1; col < size; ++col) {
             auto item = getitem(matrix, size, k, col);
             if (item > max_value) {
@@ -172,7 +171,7 @@ double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int ran
             }
         }
     }
-    MPI_Bcast(&column_with_max, 1, MPI_INT, rank, MPI_COMM_WORLD);
+    MPI_Bcast(&column_with_max, 1, MPI_INT, owner, MPI_COMM_WORLD);
     if (column_with_max == k) {
         return max_value;
     }
