@@ -13,7 +13,7 @@ using MatrixPreparer = void (*) (MatrixRef matrix, const std::vector<int>& map, 
 void doWork(const std::vector<int>& sizes, std::ostream& out, const char* title, MatrixPreparer preparer);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
-double calculate(MatrixRef a, const std::vector<int>& map);
+double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepare);
 void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
 
 double prepareMatrix(MatrixRef matrix, const std::vector<int>& map, MatrixPreparer prepare);
@@ -82,11 +82,7 @@ void doWork(const std::vector<int>& sizes, std::ostream& out, const char* title,
         for (int i = 0; i < size; ++i) {
             map[i] = i % nprocs;
         }
-        double time_sec = 0.0;
-        if (preparer != nullptr) {
-            time_sec = prepareMatrix(a, map, preparer);
-        }
-        time_sec += calculate(a, map);
+        double time_sec = calculate(a, map, preparer);
 
         if (myrank == 0) {
             out << std::setw(WIDTH_1) << size;
@@ -122,12 +118,18 @@ void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
     }
 }
 
-double calculate(MatrixRef a, const std::vector<int>& map)
+double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepare)
 {
     int size = map.size();
     int myrank;
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     auto start = std::chrono::high_resolution_clock::now();
+    if (prepare != nullptr) {
+        for (int k = 0; k < size; ++k) {
+            prepare(a, map, k, myrank);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
     for (int k = 0; k < size - 1; k++) {
         if (map[k] == myrank) {
             auto divider = getitem(a, size, k, k);
@@ -176,6 +178,7 @@ double prepareMatrix(MatrixRef matrix, const std::vector<int>& map, MatrixPrepar
     for (int i = 0; i < size; ++i) {
         prepare(matrix, map, i, rank);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<Nanoseconds>(end - start);
     return duration.count() / 1e9;
