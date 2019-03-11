@@ -4,6 +4,8 @@
 #include <chrono>
 #include <iomanip>
 
+// TODO prepare matrix before calculation
+
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
 using MatrixConstRef = const Matrix&;
@@ -16,6 +18,7 @@ double calculate(int myrank, MatrixRef a, const std::vector<int>& map, DividerSe
 double getKKItem(MatrixRef matrix, const std::vector<int>& map, int k_index, int rank);
 double getMaxInRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
+double getMaxInColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
@@ -36,8 +39,9 @@ int main(int argc, char* argv[])
     //std::vector<int> sizes { 4 };
     auto& out = std::cout;
 
-    doWork(sizes, getKKItem, std::cout, "Simple");
-    doWork(sizes, getMaxInRow, std::cout, "MaxInRow");
+    //doWork(sizes, getKKItem, std::cout, "Simple");
+    //doWork(sizes, getMaxInRow, std::cout, "MaxInRow");
+    doWork(sizes, getMaxInColumn, std::cout, "maxInColumn");
 
     out.flush();
     MPI_Finalize();
@@ -190,4 +194,60 @@ void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2
     auto value_col2 = getitem(matrix, size, row, col2);
     setitem(matrix, size, row, col1, value_col2);
     setitem(matrix, size, row, col2, value_col1);
+}
+
+double getMaxInColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
+{
+    const int TAG1 = 0;
+    const int TAG2 = 1;
+    const int TAG3 = 2;
+    auto size = static_cast<int>(map.size());
+    auto max_value = getKKItem(matrix, map, k, rank);
+    auto row_with_max = k;
+    auto k_owner = map[k];
+    for (int row = k + 1; row < size; ++row) {
+        double row_value = 0;
+        if (map[row] == rank) {
+            row_value = getitem(matrix, size, row, k);
+            if (rank == k_owner) {
+                continue;
+            }
+            MPI_Send(&row_value, 1, MPI_DOUBLE, k_owner, TAG1, MPI_COMM_WORLD);
+        }
+        if (rank == k_owner) {
+            MPI_Status status;
+            MPI_Recv(&row_value, 1, MPI_DOUBLE, map[row], TAG1, MPI_COMM_WORLD, &status);
+            if (row_value > max_value) {
+                max_value = row_value;
+                row_with_max = row;
+            }
+        }
+    }
+    MPI_Bcast(&row_with_max, 1, MPI_INT, k_owner, MPI_COMM_WORLD);
+    auto max_value_owner = map[row_with_max];
+    if (max_value_owner != rank && rank != k_owner) {
+        return 0.0;
+    }
+    if (row_with_max == k) {
+        return max_value;
+    }
+
+    std::vector<double> row_buffer(size);
+    MPI_Status status;
+    int destination_row;
+    if (rank == max_value_owner) {
+        destination_row = row_with_max;
+        auto row = matrix.data() + size * destination_row;
+        MPI_Send(row, size, MPI_DOUBLE, k_owner, TAG2, MPI_COMM_WORLD);
+        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, k_owner, TAG3, MPI_COMM_WORLD, &status);
+    } else {  // (rank == k_owner)
+        destination_row = k;
+        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, max_value_owner, TAG2, MPI_COMM_WORLD, &status);
+        auto row = matrix.data() + size * destination_row;
+        MPI_Send(row, size, MPI_DOUBLE, max_value_owner, TAG3, MPI_COMM_WORLD);
+    }
+    for (int i = 0; i < size; ++i) {
+        setitem(matrix, size, destination_row, i, row_buffer[i]);
+    }
+    return max_value;
 }
