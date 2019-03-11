@@ -13,7 +13,7 @@ using MatrixPreparer = void (*) (MatrixRef matrix, const std::vector<int>& map, 
 void doWork(const std::vector<int>& sizes, std::ostream& out, const char* title, MatrixPreparer preparer);
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
-double calculate(int myrank, MatrixRef a, const std::vector<int>& map);
+double calculate(MatrixRef a, const std::vector<int>& map);
 void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
 
 double prepareMatrix(MatrixRef matrix, const std::vector<int>& map, MatrixPreparer prepare);
@@ -86,7 +86,7 @@ void doWork(const std::vector<int>& sizes, std::ostream& out, const char* title,
         if (preparer != nullptr) {
             time_sec = prepareMatrix(a, map, preparer);
         }
-        time_sec += calculate(myrank, a, map);
+        time_sec += calculate(a, map);
 
         if (myrank == 0) {
             out << std::setw(WIDTH_1) << size;
@@ -122,9 +122,11 @@ void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
     }
 }
 
-double calculate(int myrank, MatrixRef a, const std::vector<int>& map)
+double calculate(MatrixRef a, const std::vector<int>& map)
 {
     int size = map.size();
+    int myrank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < size - 1; k++) {
         if (map[k] == myrank) {
