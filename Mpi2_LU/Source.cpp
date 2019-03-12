@@ -16,9 +16,9 @@ void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank)
 double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepare);
 void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
 
-double prepareMatrix(MatrixRef matrix, const std::vector<int>& map, MatrixPreparer prepare);
 void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
+void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
@@ -169,21 +169,6 @@ void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2
     setitem(matrix, size, row, col2, value_col1);
 }
 
-double prepareMatrix(MatrixRef matrix, const std::vector<int>& map, MatrixPreparer prepare)
-{
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    auto size = static_cast<int>(map.size());
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < size; ++i) {
-        prepare(matrix, map, i, rank);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<Nanoseconds>(end - start);
-    return duration.count() / 1e9;
-}
-
 void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
 {
     auto size = static_cast<int>(map.size());
@@ -261,4 +246,9 @@ void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int ra
     for (int i = 0; i < size; ++i) {
         setitem(matrix, size, destination_row, i, row_buffer[i]);
     }
+}
+
+void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
+{
+
 }
