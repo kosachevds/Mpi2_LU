@@ -220,6 +220,53 @@ void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int ra
     swapRows(matrix, map, rank, row_with_max, k);
 }
 
+void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
+{
+    const int TAG0 = 0;
+    const int TAG1 = 0;
+    auto size = static_cast<int>(map.size());
+    auto k_owner = map[k];
+    auto max_value = getitem(matrix, size, k, k);
+    auto row_with_max = k, col_with_max = k;
+    for (int row = k; row < size; ++row) {
+        double max_in_row = getitem(matrix, size, row, k);
+        int col_with_max_in_row = k;
+        auto row_owner = map[row];
+        if (rank == row_owner) {
+            for (int col = k; col < size; ++col) {
+                auto item = getitem(matrix, size, row, col);
+                if (item > max_in_row) {
+                    max_in_row = item;
+                    col_with_max_in_row = col;
+                }
+            }
+            if (rank != k_owner) {
+                MPI_Send(&max_in_row, 1, MPI_DOUBLE, k_owner, TAG0, MPI_COMM_WORLD);
+                MPI_Send(&col_with_max_in_row, 1, MPI_INT, k_owner, TAG1, MPI_COMM_WORLD);
+            }
+        }
+        if (rank != k_owner) {
+            continue;
+        }
+        if (rank != row_owner) {
+            MPI_Status status;
+            MPI_Recv(&max_in_row, 1, MPI_DOUBLE, row_owner, TAG0, MPI_COMM_WORLD, &status);
+            MPI_Recv(&col_with_max_in_row, 1, MPI_INT, row_owner, TAG1, MPI_COMM_WORLD, &status);
+        }
+        if (max_in_row > max_value) {
+            max_value = max_in_row;
+            row_with_max = row;
+            col_with_max = col_with_max_in_row;
+        }
+    }
+    if (col_with_max != k) {
+        swapColumns(matrix, map, rank, k, col_with_max);
+    }
+    if (row_with_max != k && (rank == k_owner || rank == map[row_with_max])) {
+        swapRows(matrix, map, rank, k, row_with_max);
+    }
+}
+
 void swapColumns(MatrixRef matrix, const std::vector<int>& map, int rank, int col1, int col2)
 {
     auto size = static_cast<int>(map.size());
