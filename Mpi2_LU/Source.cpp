@@ -193,21 +193,24 @@ void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int ra
     auto row_with_max = k;
     auto k_owner = map[k];
     for (int row = k + 1; row < size; ++row) {
+        auto row_owner = map[row];
         double row_value = 0;
-        if (map[row] == rank) {
+        if (rank == row_owner) {
             row_value = getitem(matrix, size, row, k);
-            if (rank == k_owner) {
-                continue;
+            if (rank != k_owner) {
+                MPI_Send(&row_value, 1, MPI_DOUBLE, k_owner, TAG1, MPI_COMM_WORLD);
             }
-            MPI_Send(&row_value, 1, MPI_DOUBLE, k_owner, TAG1, MPI_COMM_WORLD);
         }
-        if (rank == k_owner) {
+        if (rank != k_owner) {
+            continue;
+        }
+        if (rank != row_owner) {
             MPI_Status status;
             MPI_Recv(&row_value, 1, MPI_DOUBLE, map[row], TAG1, MPI_COMM_WORLD, &status);
-            if (row_value > max_value) {
-                max_value = row_value;
-                row_with_max = row;
-            }
+        }
+        if (row_value > max_value) {
+            row_with_max = row;
+            max_value = row_value;
         }
     }
     MPI_Bcast(&row_with_max, 1, MPI_INT, k_owner, MPI_COMM_WORLD);
@@ -215,11 +218,6 @@ void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int ra
         return;
     }
     swapRows(matrix, map, rank, row_with_max, k);
-}
-
-void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
-{
-
 }
 
 void swapColumns(MatrixRef matrix, const std::vector<int>& map, int rank, int col1, int col2)
@@ -244,18 +242,19 @@ void swapRows(MatrixRef matrix, const std::vector<int>& map, int rank, int row1,
     std::vector<double> row_buffer(size);
     MPI_Status status;
     int destination_row;
-    auto owner_row1 = map[row1];
+    auto row1_owner = map[row1];
     auto row2_owner = map[row2];
-    if (rank == owner_row1) {
+    // Fix: what if row1_owner == row2_owner
+    if (rank == row1_owner) {
         destination_row = row1;
         auto row = matrix.data() + size * destination_row;
         MPI_Send(row, size, MPI_DOUBLE, row2_owner, TAG1, MPI_COMM_WORLD);
         MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, row2_owner, TAG2, MPI_COMM_WORLD, &status);
     } else if (rank == row2_owner) {
         destination_row = row2;
-        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, owner_row1, TAG1, MPI_COMM_WORLD, &status);
+        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, row1_owner, TAG1, MPI_COMM_WORLD, &status);
         auto row = matrix.data() + size * destination_row;
-        MPI_Send(row, size, MPI_DOUBLE, owner_row1, TAG2, MPI_COMM_WORLD);
+        MPI_Send(row, size, MPI_DOUBLE, row1_owner, TAG2, MPI_COMM_WORLD);
     } else {
         return;
     }
