@@ -14,11 +14,13 @@ void doWork(const std::vector<int>& sizes, std::ostream& out, const char* title,
 void fillHilbertMatrix(MatrixRef matrix, int size);
 void printMatrix(MatrixConstRef matrix, const std::vector<int>& map, int myrank);
 double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepare);
-void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2);
 
 void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
 void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank);
+
+void swapColumns(MatrixRef matrix, const std::vector<int>& map, int rank, int col1, int col2);
+void swapRows(MatrixRef matrix, const std::vector<int>& map, int rank, int row1, int row2);
 
 inline double getitem(MatrixConstRef matrix, int rows_count, int i, int j)
 {
@@ -161,14 +163,6 @@ double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepar
     return duration.count() / 1e9;
 }
 
-void swapValuesInColumns(MatrixRef matrix, int size, int row, int col1, int col2)
-{
-    auto value_col1 = getitem(matrix, size, row, col1);
-    auto value_col2 = getitem(matrix, size, row, col2);
-    setitem(matrix, size, row, col1, value_col2);
-    setitem(matrix, size, row, col2, value_col1);
-}
-
 void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
 {
     auto size = static_cast<int>(map.size());
@@ -188,19 +182,12 @@ void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int
     if (column_with_max == k) {
         return;
     }
-    for (int row = 0; row < size; ++row) {
-        if (map[row] != rank) {
-            continue;
-        }
-        swapValuesInColumns(matrix, size, row, k, column_with_max);
-    }
+    swapColumns(matrix, map, rank, k, column_with_max);
 }
 
 void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
 {
     const int TAG1 = 0;
-    const int TAG2 = 1;
-    const int TAG3 = 2;
     auto size = static_cast<int>(map.size());
     auto max_value = getitem(matrix, size, k, k);
     auto row_with_max = k;
@@ -224,31 +211,55 @@ void swapWithMaxRow(MatrixRef matrix, const std::vector<int>& map, int k, int ra
         }
     }
     MPI_Bcast(&row_with_max, 1, MPI_INT, k_owner, MPI_COMM_WORLD);
-    auto max_value_owner = map[row_with_max];
-    if (row_with_max == k || (max_value_owner != rank && rank != k_owner)) {
+    if (row_with_max == k || (rank != map[row_with_max] && rank != k_owner)) {
         return;
     }
-
-    std::vector<double> row_buffer(size);
-    MPI_Status status;
-    int destination_row;
-    if (rank == max_value_owner) {
-        destination_row = row_with_max;
-        auto row = matrix.data() + size * destination_row;
-        MPI_Send(row, size, MPI_DOUBLE, k_owner, TAG2, MPI_COMM_WORLD);
-        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, k_owner, TAG3, MPI_COMM_WORLD, &status);
-    } else {  // (rank == k_owner)
-        destination_row = k;
-        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, max_value_owner, TAG2, MPI_COMM_WORLD, &status);
-        auto row = matrix.data() + size * destination_row;
-        MPI_Send(row, size, MPI_DOUBLE, max_value_owner, TAG3, MPI_COMM_WORLD);
-    }
-    for (int i = 0; i < size; ++i) {
-        setitem(matrix, size, destination_row, i, row_buffer[i]);
-    }
+    swapRows(matrix, map, rank, row_with_max, k);
 }
 
 void swapWithMaxInSubmatrix(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
 {
 
+}
+
+void swapColumns(MatrixRef matrix, const std::vector<int>& map, int rank, int col1, int col2)
+{
+    auto size = static_cast<int>(map.size());
+    for (int row = 0; row < size; ++row) {
+        if (map[row] != rank) {
+            continue;
+        }
+        auto value_col1 = getitem(matrix, size, row, col1);
+        auto value_col2 = getitem(matrix, size, row, col2);
+        setitem(matrix, size, row, col1, value_col2);
+        setitem(matrix, size, row, col2, value_col1);
+    }
+}
+
+void swapRows(MatrixRef matrix, const std::vector<int>& map, int rank, int row1, int row2)
+{
+    const int TAG1 = 1;
+    const int TAG2 = 2;
+    auto size = static_cast<int>(map.size());
+    std::vector<double> row_buffer(size);
+    MPI_Status status;
+    int destination_row;
+    auto owner_row1 = map[row1];
+    auto row2_owner = map[row2];
+    if (rank == owner_row1) {
+        destination_row = row1;
+        auto row = matrix.data() + size * destination_row;
+        MPI_Send(row, size, MPI_DOUBLE, row2_owner, TAG1, MPI_COMM_WORLD);
+        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, row2_owner, TAG2, MPI_COMM_WORLD, &status);
+    } else if (rank == row2_owner) {
+        destination_row = row2;
+        MPI_Recv(row_buffer.data(), size, MPI_DOUBLE, owner_row1, TAG1, MPI_COMM_WORLD, &status);
+        auto row = matrix.data() + size * destination_row;
+        MPI_Send(row, size, MPI_DOUBLE, owner_row1, TAG2, MPI_COMM_WORLD);
+    } else {
+        return;
+    }
+    for (int i = 0; i < size; ++i) {
+        setitem(matrix, size, destination_row, i, row_buffer[i]);
+    }
 }
