@@ -4,7 +4,6 @@
 #include <chrono>
 #include <iomanip>
 
-using Nanoseconds = std::chrono::nanoseconds;
 using Matrix = std::vector<double>;
 using MatrixRef = Matrix&;
 using MatrixConstRef = const Matrix&;
@@ -44,6 +43,7 @@ int main(int argc, char* argv[])
     doWork(sizes, std::cout, "Simple", nullptr);
     doWork(sizes, std::cout, "MaxInRow", swapWithMaxColumn);
     doWork(sizes, std::cout, "maxInColumn", swapWithMaxRow);
+    doWork(sizes, std::cout, "maxInSubmatrix", swapWithMaxInSubmatrix);
 
     out.flush();
     MPI_Finalize();
@@ -159,8 +159,8 @@ double calculate(MatrixRef a, const std::vector<int>& map, MatrixPreparer prepar
     }
     MPI_Barrier(MPI_COMM_WORLD);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<Nanoseconds>(end - start);
-    return duration.count() / 1e9;
+    std::chrono::duration<double> duration = end - start;
+    return duration.count();
 }
 
 void swapWithMaxColumn(MatrixRef matrix, const std::vector<int>& map, int k, int rank)
